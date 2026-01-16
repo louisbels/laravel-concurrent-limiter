@@ -2,6 +2,21 @@
 
 All notable changes to `laravel-concurrent-limiter` will be documented in this file.
 
+## [1.1.0] - 2026-01-16
+
+### Added
+- Laravel 12 support
+
+### Changed
+- Minimum PHP version is now 8.3 (dropped PHP 8.2 support)
+- Upgraded to Pest 4
+- Upgraded to larastan 3.x
+- Upgraded phpstan extensions to 2.x
+
+### Removed
+- PHP 8.2 support
+- Laravel 10 support
+
 ## [1.0.0] - 2025-01-16
 
 ### Added
@@ -26,8 +41,8 @@ All notable changes to `laravel-concurrent-limiter` will be documented in this f
   - `logging` - automatic logging when limits exceeded
 - Static helper `LaravelConcurrentLimiter::with(maxParallel, maxWaitTime, prefix)`
 - Middleware alias `concurrent.limit`
-- Support for PHP 8.3, 8.4
-- Support for Laravel 11.x and 12.x
+- Support for PHP 8.2, 8.3, 8.4
+- Support for Laravel 10.x and 11.x
 - PHPStan level 9 compliance with strict rules
 - 33 tests with Pest PHP (architecture, service provider, middleware)
 - CI/CD with GitHub Actions (tests, PHPStan, Laravel Pint)
