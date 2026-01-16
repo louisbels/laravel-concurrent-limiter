@@ -2,6 +2,21 @@
 
 All notable changes to `laravel-concurrent-limiter` will be documented in this file.
 
+## v1.3.0 - 2026-01-16
+
+### Added
+
+- **Fail-closed mode**: New `on_cache_failure` config option (`allow`/`reject`) to control behavior when cache is unavailable
+- **Artisan commands**:
+  - `concurrent-limiter:status {key}` - Check current counter value
+  - `concurrent-limiter:clear {key}` - Clear stuck counters
+- **CacheOperationFailed event**: Dispatched when cache operations fail, for monitoring
+
+### Changed
+
+- Cache operations now wrapped in try-catch for graceful error handling
+- Added `safeDecrement` method for fail-safe counter cleanup
+
 ## v1.2.0 - 2026-01-16
 
 ### Added
