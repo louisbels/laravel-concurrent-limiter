@@ -1,7 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Cache;
-use Largerio\LaravelConcurrentLimiter\Metrics\MetricsCollector;
+use Largerio\LaravelConcurrentLimiter\Metrics\PrometheusMetricsCollector;
 
 beforeEach(function () {
     Cache::flush();
@@ -9,7 +9,7 @@ beforeEach(function () {
 });
 
 it('increments requests total counter', function () {
-    $collector = new MetricsCollector;
+    $collector = new PrometheusMetricsCollector;
 
     $collector->incrementRequestsTotal();
     $collector->incrementRequestsTotal();
@@ -20,7 +20,7 @@ it('increments requests total counter', function () {
 });
 
 it('increments exceeded total counter', function () {
-    $collector = new MetricsCollector;
+    $collector = new PrometheusMetricsCollector;
 
     $collector->incrementExceededTotal();
     $collector->incrementExceededTotal();
@@ -30,7 +30,7 @@ it('increments exceeded total counter', function () {
 });
 
 it('increments cache failures counter', function () {
-    $collector = new MetricsCollector;
+    $collector = new PrometheusMetricsCollector;
 
     $collector->incrementCacheFailuresTotal();
 
@@ -39,7 +39,7 @@ it('increments cache failures counter', function () {
 });
 
 it('records wait time in histogram buckets', function () {
-    $collector = new MetricsCollector;
+    $collector = new PrometheusMetricsCollector;
 
     $collector->recordWaitTime(0.05); // Should increment 0.05, 0.1, 0.25, 0.5, 1.0, etc.
     $collector->recordWaitTime(0.5);  // Should increment 0.5, 1.0, etc.
@@ -52,7 +52,7 @@ it('records wait time in histogram buckets', function () {
 });
 
 it('outputs prometheus format', function () {
-    $collector = new MetricsCollector;
+    $collector = new PrometheusMetricsCollector;
 
     $collector->incrementRequestsTotal();
     $collector->incrementExceededTotal();
@@ -73,7 +73,7 @@ it('outputs prometheus format', function () {
 });
 
 it('sets active count gauge', function () {
-    $collector = new MetricsCollector;
+    $collector = new PrometheusMetricsCollector;
 
     $collector->setActiveCount('user:123', 5);
 
@@ -83,7 +83,7 @@ it('sets active count gauge', function () {
 });
 
 it('resets metrics', function () {
-    $collector = new MetricsCollector;
+    $collector = new PrometheusMetricsCollector;
 
     $collector->incrementRequestsTotal();
     $collector->incrementExceededTotal();

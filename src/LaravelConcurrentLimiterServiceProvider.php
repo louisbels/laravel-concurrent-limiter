@@ -9,9 +9,11 @@ use Illuminate\Support\Facades\Route;
 use Largerio\LaravelConcurrentLimiter\Commands\ClearCommand;
 use Largerio\LaravelConcurrentLimiter\Commands\StatusCommand;
 use Largerio\LaravelConcurrentLimiter\Contracts\ConcurrentLimiter;
-use Largerio\LaravelConcurrentLimiter\Metrics\MetricsCollector;
+use Largerio\LaravelConcurrentLimiter\Contracts\JobLimiter;
+use Largerio\LaravelConcurrentLimiter\Contracts\MetricsCollector;
 use Largerio\LaravelConcurrentLimiter\Metrics\MetricsController;
 use Largerio\LaravelConcurrentLimiter\Metrics\MetricsEventSubscriber;
+use Largerio\LaravelConcurrentLimiter\Metrics\PrometheusMetricsCollector;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 
@@ -32,7 +34,12 @@ class LaravelConcurrentLimiterServiceProvider extends PackageServiceProvider
     {
         $this->app->singleton(ConcurrentLimiter::class, LaravelConcurrentLimiter::class);
         $this->app->singleton(LaravelConcurrentLimiter::class);
-        $this->app->singleton(MetricsCollector::class);
+
+        $this->app->singleton(JobLimiter::class, JobConcurrentLimiter::class);
+        $this->app->singleton(JobConcurrentLimiter::class);
+
+        $this->app->singleton(MetricsCollector::class, PrometheusMetricsCollector::class);
+        $this->app->singleton(PrometheusMetricsCollector::class);
     }
 
     public function packageBooted(): void

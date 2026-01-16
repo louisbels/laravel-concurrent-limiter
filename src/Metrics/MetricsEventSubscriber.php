@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Largerio\LaravelConcurrentLimiter\Metrics;
 
 use Illuminate\Events\Dispatcher;
+use Largerio\LaravelConcurrentLimiter\Contracts\MetricsCollector;
 use Largerio\LaravelConcurrentLimiter\Events\CacheOperationFailed;
 use Largerio\LaravelConcurrentLimiter\Events\ConcurrentLimitExceeded;
 use Largerio\LaravelConcurrentLimiter\Events\ConcurrentLimitReleased;

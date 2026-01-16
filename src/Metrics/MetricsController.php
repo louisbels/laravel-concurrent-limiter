@@ -6,6 +6,7 @@ namespace Largerio\LaravelConcurrentLimiter\Metrics;
 
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
+use Largerio\LaravelConcurrentLimiter\Contracts\MetricsCollector;
 
 class MetricsController extends Controller
 {

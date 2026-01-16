@@ -24,6 +24,18 @@ arch('middleware implements ConcurrentLimiter interface')
     ->expect(Largerio\LaravelConcurrentLimiter\LaravelConcurrentLimiter::class)
     ->toImplement(Largerio\LaravelConcurrentLimiter\Contracts\ConcurrentLimiter::class);
 
+arch('job middleware implements JobLimiter interface')
+    ->expect(Largerio\LaravelConcurrentLimiter\JobConcurrentLimiter::class)
+    ->toImplement(Largerio\LaravelConcurrentLimiter\Contracts\JobLimiter::class);
+
+arch('prometheus metrics collector implements MetricsCollector interface')
+    ->expect(Largerio\LaravelConcurrentLimiter\Metrics\PrometheusMetricsCollector::class)
+    ->toImplement(Largerio\LaravelConcurrentLimiter\Contracts\MetricsCollector::class);
+
+arch('concerns are traits')
+    ->expect('Largerio\LaravelConcurrentLimiter\Concerns')
+    ->toBeTraits();
+
 arch('source code has strict types')
     ->expect('Largerio\LaravelConcurrentLimiter')
     ->toUseStrictTypes();

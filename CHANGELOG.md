@@ -2,6 +2,27 @@
 
 All notable changes to `laravel-concurrent-limiter` will be documented in this file.
 
+## v2.1.0 - 2026-01-16
+
+### Added
+
+- **New trait** `HasAtomicCacheOperations` for shared cache operations
+- **New interface** `JobLimiter` for job middleware abstraction
+- **New interface** `MetricsCollector` for metrics collection abstraction
+- Container bindings for `JobLimiter` and `MetricsCollector` interfaces
+
+### Changed
+
+- `JobConcurrentLimiter` now implements `JobLimiter` interface
+- `MetricsCollector` renamed to `PrometheusMetricsCollector`
+- `PrometheusMetricsCollector` now implements `MetricsCollector` interface
+- Improved dependency injection (constructor accepts dependencies)
+- Refactored to eliminate 83 lines of duplicate code
+
+### Removed
+
+- Unused `resources/views/` directory
+
 ## v2.0.0 - 2026-01-16
 
 ### Added

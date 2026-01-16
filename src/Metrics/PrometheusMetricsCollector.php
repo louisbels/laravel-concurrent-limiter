@@ -6,15 +6,22 @@ namespace Largerio\LaravelConcurrentLimiter\Metrics;
 
 use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Support\Facades\Cache;
+use Largerio\LaravelConcurrentLimiter\Contracts\MetricsCollector;
 
-class MetricsCollector
+class PrometheusMetricsCollector implements MetricsCollector
 {
     protected Repository $cache;
 
     protected string $prefix = 'concurrent_limiter_metrics:';
 
-    public function __construct()
+    public function __construct(?Repository $cache = null)
     {
+        if ($cache !== null) {
+            $this->cache = $cache;
+
+            return;
+        }
+
         /** @var string|null $store */
         $store = config('concurrent-limiter.cache_store');
 
