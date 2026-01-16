@@ -40,7 +40,7 @@ This document provides guidance for AI assistants working with the Laravel Concu
 ├── config/
 │   └── concurrent-limiter.php           # Package configuration
 ├── .github/workflows/
-│   ├── run-tests.yml                    # Tests (PHP 8.2-8.4, Laravel 10-11)
+│   ├── run-tests.yml                    # Tests (PHP 8.3-8.4, Laravel 11-12)
 │   ├── phpstan.yml                      # Static analysis (level 9)
 │   └── fix-php-code-style-issues.yml    # Laravel Pint
 ├── composer.json

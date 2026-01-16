@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
+use InvalidArgumentException;
 use Largerio\LaravelConcurrentLimiter\Contracts\ConcurrentLimiter;
 use Largerio\LaravelConcurrentLimiter\Contracts\KeyResolver;
 use Largerio\LaravelConcurrentLimiter\Contracts\ResponseHandler;
@@ -311,4 +312,33 @@ it('uses custom response handler when configured', function () {
 
     expect($response->getStatusCode())->toBe(429);
     expect(json_decode($response->getContent(), true))->toBe(['custom' => 'response']);
+});
+
+it('throws exception when maxParallel is less than 1', function () {
+    $middleware = app(LaravelConcurrentLimiter::class);
+    $request = Request::create('/test', 'GET');
+    $request->setUserResolver(fn () => null);
+    $request->server->set('REMOTE_ADDR', '127.0.0.1');
+
+    $middleware->handle($request, fn () => response()->json(['ok' => true]), 0, 10);
+})->throws(InvalidArgumentException::class, 'maxParallel must be at least 1');
+
+it('throws exception when maxWaitTime is negative', function () {
+    $middleware = app(LaravelConcurrentLimiter::class);
+    $request = Request::create('/test', 'GET');
+    $request->setUserResolver(fn () => null);
+    $request->server->set('REMOTE_ADDR', '127.0.0.1');
+
+    $middleware->handle($request, fn () => response()->json(['ok' => true]), 5, -1);
+})->throws(InvalidArgumentException::class, 'maxWaitTime cannot be negative');
+
+it('allows maxWaitTime of zero', function () {
+    $middleware = app(LaravelConcurrentLimiter::class);
+    $request = Request::create('/test', 'GET');
+    $request->setUserResolver(fn () => null);
+    $request->server->set('REMOTE_ADDR', '127.0.0.1');
+
+    $response = $middleware->handle($request, fn () => response()->json(['ok' => true]), 5, 0);
+
+    expect($response->getStatusCode())->toBe(200);
 });

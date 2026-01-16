@@ -27,6 +27,10 @@ class DefaultKeyResolver implements KeyResolver
             return sha1($ip);
         }
 
-        throw new RuntimeException('Unable to generate the request signature. No user or IP available.');
+        throw new RuntimeException(
+            'Unable to generate the request signature. No authenticated user or IP address available. '
+            .'Ensure the request has an authenticated user or passes through a trusted proxy that sets X-Forwarded-For. '
+            .'You can also implement a custom KeyResolver to handle this case.'
+        );
     }
 }

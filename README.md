@@ -64,6 +64,150 @@ php artisan vendor:publish --provider="Largerio\LaravelConcurrentLimiter\Laravel
 
 Feel free to customize the default settings.
 
+## Events
+
+The middleware dispatches three events that you can listen to for monitoring and logging:
+
+| Event | When | Properties |
+|-------|------|------------|
+| `ConcurrentLimitWaiting` | Request starts waiting for a slot | `$request`, `$currentCount`, `$maxParallel`, `$key` |
+| `ConcurrentLimitExceeded` | Timeout reached, returning 503 | `$request`, `$waitedSeconds`, `$maxParallel`, `$key` |
+| `ConcurrentLimitReleased` | Request completed successfully | `$request`, `$processingTime`, `$key` |
+
+Example listener:
+
+```php
+use Largerio\LaravelConcurrentLimiter\Events\ConcurrentLimitExceeded;
+
+class LogConcurrentLimitExceeded
+{
+    public function handle(ConcurrentLimitExceeded $event): void
+    {
+        Log::warning('Concurrent limit exceeded', [
+            'key' => $event->key,
+            'waited_seconds' => $event->waitedSeconds,
+            'url' => $event->request->fullUrl(),
+        ]);
+    }
+}
+```
+
+## Custom Key Resolver
+
+By default, the middleware uses the authenticated user ID or the request IP to generate a unique key. You can customize this behavior by implementing your own `KeyResolver`.
+
+Example: Multi-tenant key resolver
+
+```php
+namespace App\Limiters;
+
+use Illuminate\Http\Request;
+use Largerio\LaravelConcurrentLimiter\Contracts\KeyResolver;
+
+class TenantKeyResolver implements KeyResolver
+{
+    public function resolve(Request $request): string
+    {
+        $tenantId = $request->header('X-Tenant-ID') ?? 'default';
+        $userId = $request->user()?->id ?? $request->ip();
+
+        return sha1($tenantId . ':' . $userId);
+    }
+}
+```
+
+Register it in your config:
+
+```php
+// config/concurrent-limiter.php
+'key_resolver' => App\Limiters\TenantKeyResolver::class,
+```
+
+## Custom Response Handler
+
+You can customize the 503 response by implementing your own `ResponseHandler`.
+
+Example: HTML response instead of JSON
+
+```php
+namespace App\Limiters;
+
+use Illuminate\Http\Request;
+use Largerio\LaravelConcurrentLimiter\Contracts\ResponseHandler;
+use Symfony\Component\HttpFoundation\Response;
+
+class HtmlResponseHandler implements ResponseHandler
+{
+    public function handle(Request $request, float $waitedSeconds, int $maxWaitTime): Response
+    {
+        return response()->view('errors.503-concurrent', [
+            'waited' => $waitedSeconds,
+            'maxWait' => $maxWaitTime,
+        ], 503)->header('Retry-After', (string) $maxWaitTime);
+    }
+}
+```
+
+Register it in your config:
+
+```php
+// config/concurrent-limiter.php
+'response_handler' => App\Limiters\HtmlResponseHandler::class,
+```
+
+## Cache Store Recommendations
+
+The middleware requires a cache store that supports atomic operations. Recommendations:
+
+| Cache Store | Production Ready | Notes |
+|-------------|------------------|-------|
+| **Redis** | ✅ Yes | Best choice. Supports locks for atomic operations. |
+| **Memcached** | ✅ Yes | Good alternative to Redis. |
+| **DynamoDB** | ✅ Yes | Works with Laravel DynamoDB cache driver. |
+| **Database** | ⚠️ Limited | Works but may cause contention under high load. |
+| **File** | ❌ No | No locking support. Race conditions possible. |
+| **Array** | ❌ No | Only for testing. Data lost between requests. |
+
+Configure your preferred store in `config/concurrent-limiter.php`:
+
+```php
+'cache_store' => 'redis', // or null to use default
+```
+
+## Troubleshooting
+
+### Always getting 503 errors
+
+1. **Check your `maxParallel` setting** - It might be too low for your traffic.
+2. **Verify cache is working** - Run `php artisan tinker` and test `Cache::put('test', 1); Cache::get('test');`
+3. **Check for stuck counters** - If your app crashed, counters may not have decremented. They will expire after `maxWaitTime + ttl_buffer` seconds.
+
+### Requests not being limited
+
+1. **Verify middleware is applied** - Run `php artisan route:list` to check middleware.
+2. **Check cache store** - Using `array` driver? It doesn't persist between requests.
+3. **Different users/IPs** - Each user/IP has their own limit. Check if requests come from different sources.
+
+### Performance issues
+
+1. **Use Redis** - It's the fastest option with proper locking support.
+2. **Tune polling interval** - The middleware polls every 100ms. This is hardcoded but reasonable for most use cases.
+3. **Reduce `maxWaitTime`** - Lower wait times free up resources faster.
+
+### Debugging
+
+Enable logging in your config to see when limits are exceeded:
+
+```php
+'logging' => [
+    'enabled' => true,
+    'channel' => null, // uses default channel
+    'level' => 'warning',
+],
+```
+
+You can also listen to events for more detailed monitoring (see Events section above).
+
 ## License
 
 This package is open-sourced software licensed under the [MIT license](LICENSE).

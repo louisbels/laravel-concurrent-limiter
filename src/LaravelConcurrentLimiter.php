@@ -12,6 +12,7 @@ use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Http\Request;
 use Illuminate\Log\LogManager;
 use Illuminate\Support\Facades\Log;
+use InvalidArgumentException;
 use Largerio\LaravelConcurrentLimiter\Contracts\ConcurrentLimiter;
 use Largerio\LaravelConcurrentLimiter\Contracts\KeyResolver;
 use Largerio\LaravelConcurrentLimiter\Contracts\ResponseHandler;
@@ -69,6 +70,15 @@ class LaravelConcurrentLimiter implements ConcurrentLimiter
 
         $maxParallel = $maxParallel ?? $configMaxParallel;
         $maxWaitTime = $maxWaitTime ?? $configMaxWaitTime;
+
+        if ($maxParallel < 1) {
+            throw new InvalidArgumentException('maxParallel must be at least 1');
+        }
+
+        if ($maxWaitTime < 0) {
+            throw new InvalidArgumentException('maxWaitTime cannot be negative');
+        }
+
         $ttl = $maxWaitTime + $configTtlBuffer;
         $cachePrefix = $configCachePrefix;
 
