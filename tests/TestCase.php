@@ -1,10 +1,10 @@
 <?php
 
-namespace Patrocle\LaravelConcurrentLimiter\Tests;
+namespace Largerio\LaravelConcurrentLimiter\Tests;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Largerio\LaravelConcurrentLimiter\LaravelConcurrentLimiterServiceProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
-use Patrocle\LaravelConcurrentLimiter\LaravelConcurrentLimiterServiceProvider;
 
 class TestCase extends Orchestra
 {
@@ -13,7 +13,7 @@ class TestCase extends Orchestra
         parent::setUp();
 
         Factory::guessFactoryNamesUsing(
-            fn (string $modelName) => 'Patrocle\\LaravelConcurrentLimiter\\Database\\Factories\\'.class_basename($modelName).'Factory'
+            fn (string $modelName) => 'Largerio\\LaravelConcurrentLimiter\\Database\\Factories\\'.class_basename($modelName).'Factory'
         );
     }
 

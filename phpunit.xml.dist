@@ -16,7 +16,7 @@
     backupStaticProperties="false"
 >
     <testsuites>
-        <testsuite name="Patrocle Test Suite">
+        <testsuite name="Largerio Test Suite">
             <directory>tests</directory>
         </testsuite>
     </testsuites>

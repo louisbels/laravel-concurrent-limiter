@@ -6,8 +6,9 @@ This document provides guidance for AI assistants working with the Laravel Concu
 
 **Laravel Concurrent Limiter** is a lightweight Laravel middleware package that limits the number of concurrent requests per user (or IP when unauthenticated). It delays incoming requests until a slot is free or returns a 503 error if the wait exceeds a defined maximum time.
 
-- **Package Name**: `patrocle/laravel-concurrent-limiter`
-- **Namespace**: `Patrocle\LaravelConcurrentLimiter`
+- **Package Name**: `largerio/laravel-concurrent-limiter`
+- **Namespace**: `Largerio\LaravelConcurrentLimiter`
+- **Repository**: `https://github.com/largerio/laravel-concurrent-limiter`
 - **License**: MIT
 - **PHP Support**: 8.2, 8.3, 8.4
 - **Laravel Support**: 10.x, 11.x
@@ -15,169 +16,146 @@ This document provides guidance for AI assistants working with the Laravel Concu
 ## Repository Structure
 
 ```
-├── src/                              # Source code
-│   ├── LaravelConcurrentLimiter.php           # Core middleware class
-│   └── LaravelConcurrentLimiterServiceProvider.php  # Service provider
-├── tests/                            # Test suite (Pest)
-│   ├── TestCase.php                 # Base test case
-│   ├── ExampleTest.php              # Example tests
-│   ├── ArchTest.php                 # Architecture tests
-│   └── Pest.php                     # Pest configuration
-├── config/                           # Package configuration
-│   └── concurrent-limiter.php       # Config file
-├── .github/workflows/               # CI/CD workflows
-│   ├── run-tests.yml               # Test execution
-│   ├── phpstan.yml                 # Static analysis
-│   └── fix-php-code-style-issues.yml  # Code styling
-├── composer.json                    # Dependencies
-├── phpunit.xml.dist                # PHPUnit/Pest config
-└── phpstan.neon.dist               # PHPStan config
+├── src/
+│   ├── Contracts/
+│   │   ├── ConcurrentLimiter.php        # Main interface
+│   │   ├── KeyResolver.php              # Key resolution interface
+│   │   └── ResponseHandler.php          # Response handling interface
+│   ├── Events/
+│   │   ├── ConcurrentLimitWaiting.php   # Dispatched when request waits
+│   │   ├── ConcurrentLimitExceeded.php  # Dispatched on timeout
+│   │   └── ConcurrentLimitReleased.php  # Dispatched after completion
+│   ├── KeyResolvers/
+│   │   └── DefaultKeyResolver.php       # Default: user ID or IP
+│   ├── ResponseHandlers/
+│   │   └── DefaultResponseHandler.php   # Default: 503 JSON response
+│   ├── LaravelConcurrentLimiter.php     # Core middleware class
+│   └── LaravelConcurrentLimiterServiceProvider.php
+├── tests/
+│   ├── ArchTest.php                     # Architecture tests (8 tests)
+│   ├── ServiceProviderTest.php          # Service provider tests (5 tests)
+│   ├── LaravelConcurrentLimiterTest.php # Middleware tests (20 tests)
+│   ├── TestCase.php                     # Base test case
+│   └── Pest.php                         # Pest configuration
+├── config/
+│   └── concurrent-limiter.php           # Package configuration
+├── .github/workflows/
+│   ├── run-tests.yml                    # Tests (PHP 8.2-8.4, Laravel 10-11)
+│   ├── phpstan.yml                      # Static analysis (level 9)
+│   └── fix-php-code-style-issues.yml    # Laravel Pint
+├── composer.json
+├── phpunit.xml.dist
+└── phpstan.neon.dist
 ```
-
-## Key Files
-
-| File | Purpose |
-|------|---------|
-| `src/LaravelConcurrentLimiter.php` | Main middleware - handles concurrent request limiting |
-| `src/LaravelConcurrentLimiterServiceProvider.php` | Registers middleware alias `concurrent.limit` |
-| `config/concurrent-limiter.php` | Package configuration (extensible) |
-| `tests/TestCase.php` | Base test class using Orchestra Testbench |
 
 ## Development Commands
 
 ```bash
-# Run tests
-composer test
-
-# Run tests with coverage
-composer test-coverage
-
-# Run static analysis (PHPStan level 5)
-composer analyse
-
-# Fix code style (Laravel Pint)
-composer format
+composer test           # Run tests (33 tests)
+composer test-coverage  # Run tests with coverage
+composer analyse        # PHPStan level 9 (strict mode)
+composer format         # Laravel Pint code styling
 ```
 
-## Middleware Parameters
+## Key Concepts
 
-The middleware accepts three parameters:
+### Middleware Parameters
 
-1. **maxParallel** (default: 10) - Maximum concurrent requests allowed
-2. **maxWaitTime** (default: 30) - Maximum seconds to wait for a slot
-3. **prefix** (default: '') - Optional cache key prefix
-
-Usage examples:
 ```php
-// Route-level
+// Route-level: maxParallel, maxWaitTime, prefix
 Route::middleware('concurrent.limit:10,30,api')->group(...);
 
-// Programmatic
+// Programmatic helper
 Route::middleware(LaravelConcurrentLimiter::with(10, 30, 'api'))->group(...);
 ```
 
-## Code Conventions
+### Events
 
-### PHP Style
-- Follow PSR-12 coding standards
-- Use Laravel Pint for formatting (run `composer format`)
-- PHPStan level 5 compliance required
-- No debugging functions (`dd`, `dump`, `ray`) in production code
+The middleware dispatches three events:
 
-### Testing
-- Use Pest PHP framework
-- Architecture tests verify no debugging functions exist
-- Tests extend `Patrocle\LaravelConcurrentLimiter\Tests\TestCase`
+| Event | When | Properties |
+|-------|------|------------|
+| `ConcurrentLimitWaiting` | Request starts waiting | `$request`, `$currentCount`, `$maxParallel`, `$key` |
+| `ConcurrentLimitExceeded` | Timeout reached | `$request`, `$waitedSeconds`, `$maxParallel`, `$key` |
+| `ConcurrentLimitReleased` | Request completed | `$request`, `$processingTime`, `$key` |
 
-### Cache Usage
-- Uses Laravel's Cache facade for atomic operations
-- Keys are SHA1 hashes of user ID or IP address
-- Timer keys prevent stale counters
+### Extensibility
 
-## Architecture Overview
+Custom key resolution:
+```php
+// config/concurrent-limiter.php
+'key_resolver' => App\Limiters\TenantKeyResolver::class,
 
-### Request Flow
-1. Request arrives at middleware
-2. Atomic increment of cache counter for user/IP
-3. Wait loop (100ms polling) until slot available or timeout
-4. On timeout: decrement counter, return 503 JSON response
-5. On success: process request, decrement counter in `finally` block
+// Must implement Largerio\LaravelConcurrentLimiter\Contracts\KeyResolver
+```
 
-### Key Methods in LaravelConcurrentLimiter.php
+Custom response handling:
+```php
+// config/concurrent-limiter.php
+'response_handler' => App\Limiters\CustomResponseHandler::class,
 
-- `handle()` - Main middleware method
-- `resolveRequestSignature()` - Generates unique key (user ID or IP)
-- `with()` - Static helper for middleware definition
+// Must implement Largerio\LaravelConcurrentLimiter\Contracts\ResponseHandler
+```
+
+## Configuration Options
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `max_parallel` | 10 | Max concurrent requests per user/IP |
+| `max_wait_time` | 30 | Seconds to wait before 503 error |
+| `ttl_buffer` | 60 | Extra TTL seconds for cache safety |
+| `cache_prefix` | `concurrent-limiter:` | Cache key prefix |
+| `cache_store` | null | Cache store (null = default) |
+| `error_message` | "Too many concurrent..." | 503 response message |
+| `retry_after` | true | Include Retry-After header |
+| `key_resolver` | null | Custom KeyResolver class |
+| `response_handler` | null | Custom ResponseHandler class |
+| `logging.enabled` | false | Log when limits exceeded |
+| `logging.channel` | null | Log channel |
+| `logging.level` | warning | Log level |
+
+## Code Standards
+
+- **PHP**: PSR-12, `declare(strict_types=1)` on all files
+- **Static Analysis**: PHPStan level 9 with strict rules
+- **Testing**: Pest PHP with architecture tests
+- **Formatting**: Laravel Pint
+
+### Architecture Tests
+
+```php
+arch('contracts are interfaces')
+arch('events use Dispatchable trait')
+arch('key resolvers implement KeyResolver interface')
+arch('response handlers implement ResponseHandler interface')
+arch('middleware implements ConcurrentLimiter interface')
+arch('source code has strict types')
+arch('no debugging functions')
+arch('no dependencies on laravel internals')
+```
+
+## Request Flow
+
+1. Request enters middleware
+2. Atomic increment of cache counter (with lock if available)
+3. If over limit: wait loop (100ms polling) until slot free or timeout
+4. On timeout: decrement, dispatch `ConcurrentLimitExceeded`, return 503
+5. On success: process request, decrement in `finally`, dispatch `ConcurrentLimitReleased`
 
 ## CI/CD Pipeline
 
-### Automated Checks (on push)
-1. **Tests** - Runs across PHP 8.3/8.4, Laravel 10/11, Ubuntu/Windows
-2. **PHPStan** - Static analysis at level 5
-3. **Laravel Pint** - Auto-fixes and commits style issues
+All workflows trigger on `push` AND `pull_request`:
 
-### Dependabot
-- Weekly checks for Composer and GitHub Actions updates
-- Auto-merges minor and patch updates
+| Workflow | Description |
+|----------|-------------|
+| `run-tests.yml` | PHP 8.2/8.3/8.4 × Laravel 10/11 × Ubuntu/Windows |
+| `phpstan.yml` | Static analysis level 9 |
+| `fix-php-code-style-issues.yml` | Auto-fix and commit style issues |
 
-## Common Tasks
+## Important Implementation Details
 
-### Adding a New Feature
-1. Write tests in `tests/` using Pest
-2. Implement in `src/`
-3. Run `composer test` and `composer analyse`
-4. Run `composer format` before committing
-
-### Modifying Middleware Behavior
-- Edit `src/LaravelConcurrentLimiter.php`
-- The `handle()` method contains the main logic
-- Ensure atomic cache operations are preserved
-
-### Adding Configuration Options
-1. Add to `config/concurrent-limiter.php`
-2. Access via `config('concurrent-limiter.key')`
-3. Update service provider if needed
-
-## Testing Guidelines
-
-```php
-// Example test structure
-it('limits concurrent requests', function () {
-    // Setup
-    // Action
-    // Assertion
-});
-
-// Architecture test example
-arch('no debugging functions')
-    ->expect(['dd', 'dump', 'ray'])
-    ->not->toBeUsed();
-```
-
-## Dependencies
-
-### Production
-- `spatie/laravel-package-tools` - Package scaffolding
-- `illuminate/contracts` - Laravel contracts
-
-### Development
-- `pestphp/pest` - Testing framework
-- `larastan/larastan` - PHPStan for Laravel
-- `laravel/pint` - Code styling
-- `orchestra/testbench` - Laravel testing utilities
-
-## Error Handling
-
-The middleware returns a 503 JSON response when limits are exceeded:
-```json
-{
-    "message": "Too many concurrent requests. Please try again later."
-}
-```
-
-## Important Notes
-
-- The middleware uses polling (100ms intervals) to check slot availability
-- Cache counters are always decremented in `finally` blocks to prevent leaks
-- Timer keys expire after `maxWaitTime + 5` seconds to clean up stale entries
-- User ID takes precedence over IP for request identification
+- Cache operations use `LockProvider` when available for atomicity
+- Fallback to non-locking operations for simple cache stores
+- Counter always decremented in `finally` block to prevent leaks
+- TTL = `maxWaitTime + ttl_buffer` to handle crashes
+- User ID takes precedence over IP for key generation

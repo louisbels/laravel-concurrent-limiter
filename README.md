@@ -1,5 +1,10 @@
 # Laravel Concurrent Limiter
 
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/largerio/laravel-concurrent-limiter.svg?style=flat-square)](https://packagist.org/packages/largerio/laravel-concurrent-limiter)
+[![Tests](https://img.shields.io/github/actions/workflow/status/largerio/laravel-concurrent-limiter/run-tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/largerio/laravel-concurrent-limiter/actions/workflows/run-tests.yml)
+[![PHPStan](https://img.shields.io/github/actions/workflow/status/largerio/laravel-concurrent-limiter/phpstan.yml?branch=main&label=phpstan&style=flat-square)](https://github.com/largerio/laravel-concurrent-limiter/actions/workflows/phpstan.yml)
+[![Total Downloads](https://img.shields.io/packagist/dt/largerio/laravel-concurrent-limiter.svg?style=flat-square)](https://packagist.org/packages/largerio/laravel-concurrent-limiter)
+
 **Laravel Concurrent Limiter** is a Laravel middleware package that limits the number of concurrent requests per user (or IP when unauthenticated). It delays incoming requests until a slot is free or returns a 503 error if the wait exceeds a defined maximum time.
 
 ## Installation
@@ -7,13 +12,13 @@
 You can install the package via Composer:
 
 ```bash
-composer require patrocle/laravel-concurrent-limiter
+composer require largerio/laravel-concurrent-limiter
 ```
 
 If your Laravel version does not auto-discover the service provider, add it to your `config/app.php` providers array:
 
 ```php
-Patrocle\LaravelConcurrentLimiter\LaravelConcurrentLimiterServiceProvider::class,
+Largerio\LaravelConcurrentLimiter\LaravelConcurrentLimiterServiceProvider::class,
 ```
 
 ## Usage
@@ -54,7 +59,7 @@ After processing, the counter is decremented.
 The package provides a config file that you can publish:
 
 ```bash
-php artisan vendor:publish --provider="Patrocle\LaravelConcurrentLimiter\LaravelConcurrentLimiterServiceProvider" --tag="config"
+php artisan vendor:publish --provider="Largerio\LaravelConcurrentLimiter\LaravelConcurrentLimiterServiceProvider" --tag="config"
 ```
 
 Feel free to customize the default settings.

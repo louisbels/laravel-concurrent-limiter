@@ -1,12 +1,15 @@
 {
-    "name": "patrocle/laravel-concurrent-limiter",
+    "name": "largerio/laravel-concurrent-limiter",
     "description": "LaravelConcurrentLimiter is a lightweight Laravel middleware that limits concurrent requests per user (or IP). It delays requests until a slot is available or returns an error after a maximum wait time, protecting your app from resource exhaustion and ensuring fair usage under high load.",
     "keywords": [
-        "Patrocle",
+        "largerio",
         "laravel",
-        "laravel-concurrent-limiter"
+        "laravel-concurrent-limiter",
+        "concurrent",
+        "rate-limiting",
+        "middleware"
     ],
-    "homepage": "https://github.com/patrocle/laravel-concurrent-limiter",
+    "homepage": "https://github.com/largerio/laravel-concurrent-limiter",
     "license": "MIT",
     "authors": [
         {
@@ -35,12 +38,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Patrocle\\LaravelConcurrentLimiter\\": "src/"
+            "Largerio\\LaravelConcurrentLimiter\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Patrocle\\LaravelConcurrentLimiter\\Tests\\": "tests/",
+            "Largerio\\LaravelConcurrentLimiter\\Tests\\": "tests/",
             "Workbench\\App\\": "workbench/app/"
         }
     },
@@ -62,11 +65,8 @@
     "extra": {
         "laravel": {
             "providers": [
-                "Patrocle\\LaravelConcurrentLimiter\\LaravelConcurrentLimiterServiceProvider"
-            ],
-            "aliases": {
-                "LaravelConcurrentLimiter": "Patrocle\\LaravelConcurrentLimiter\\Facades\\LaravelConcurrentLimiter"
-            }
+                "Largerio\\LaravelConcurrentLimiter\\LaravelConcurrentLimiterServiceProvider"
+            ]
         }
     },
     "minimum-stability": "dev",
