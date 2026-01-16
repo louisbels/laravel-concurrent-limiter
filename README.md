@@ -210,6 +210,97 @@ php artisan concurrent-limiter:clear abc123
 php artisan concurrent-limiter:clear abc123 --force
 ```
 
+## Job Middleware
+
+Limit concurrent execution of queued jobs to protect external APIs or shared resources:
+
+```php
+use Largerio\LaravelConcurrentLimiter\JobConcurrentLimiter;
+
+class ProcessPayment implements ShouldQueue
+{
+    use Dispatchable, InteractsWithQueue, Queueable;
+
+    public function middleware(): array
+    {
+        return [
+            new JobConcurrentLimiter(
+                maxParallel: 5,        // Max 5 concurrent jobs
+                key: 'stripe-api',     // Shared key for all Stripe jobs
+                releaseAfter: 30,      // Retry after 30 seconds if limit reached
+                shouldRelease: true    // Auto-release job back to queue
+            ),
+        ];
+    }
+
+    public function handle(): void
+    {
+        // Process payment with Stripe...
+    }
+}
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `maxParallel` | int | 5 | Maximum concurrent jobs |
+| `key` | string | 'default' | Identifier for grouping jobs |
+| `releaseAfter` | int | 30 | Seconds before retrying |
+| `shouldRelease` | bool | true | Release job back to queue if limited |
+
+**Use Cases:**
+- Limit API calls to third-party services (Stripe, Twilio, etc.)
+- Prevent database overload from batch processing
+- Control concurrent file processing or exports
+
+## Prometheus Metrics
+
+Enable Prometheus-compatible metrics for monitoring:
+
+```php
+// config/concurrent-limiter.php
+'metrics' => [
+    'enabled' => true,
+    'route' => '/concurrent-limiter/metrics',
+    'middleware' => ['auth:api'], // Protect the endpoint
+],
+```
+
+**Available Metrics:**
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `concurrent_limiter_requests_total` | Counter | Total requests processed |
+| `concurrent_limiter_exceeded_total` | Counter | Requests rejected (503) |
+| `concurrent_limiter_cache_failures_total` | Counter | Cache operation failures |
+| `concurrent_limiter_wait_seconds` | Histogram | Time spent waiting for slots |
+
+**Example Output:**
+
+```
+# HELP concurrent_limiter_requests_total Total number of requests processed
+# TYPE concurrent_limiter_requests_total counter
+concurrent_limiter_requests_total{key="all"} 1523
+
+# HELP concurrent_limiter_exceeded_total Total number of requests rejected (503)
+# TYPE concurrent_limiter_exceeded_total counter
+concurrent_limiter_exceeded_total{key="all"} 42
+
+# HELP concurrent_limiter_wait_seconds Time spent waiting for a slot
+# TYPE concurrent_limiter_wait_seconds histogram
+concurrent_limiter_wait_seconds_bucket{le="0.1"} 1200
+concurrent_limiter_wait_seconds_bucket{le="1"} 1450
+concurrent_limiter_wait_seconds_bucket{le="+Inf"} 1523
+concurrent_limiter_wait_seconds_sum 156.234
+concurrent_limiter_wait_seconds_count 1523
+```
+
+**Grafana Dashboard Tips:**
+- Alert on `rate(concurrent_limiter_exceeded_total[5m]) > 10`
+- Monitor p99 wait time with histogram quantiles
+- Track cache failures for infrastructure issues
+
 ## Cache Failure Handling
 
 By default, if the cache becomes unavailable (e.g., Redis is down), the middleware will let requests through (fail-open). For critical endpoints, you can configure fail-closed behavior:

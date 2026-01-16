@@ -132,4 +132,23 @@ return [
     |
     */
     'on_cache_failure' => 'allow',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Metrics
+    |--------------------------------------------------------------------------
+    |
+    | Configure Prometheus-compatible metrics collection and exposure.
+    |
+    */
+    'metrics' => [
+        // Enable metrics collection
+        'enabled' => false,
+
+        // Route path for the metrics endpoint (null to disable HTTP endpoint)
+        'route' => '/concurrent-limiter/metrics',
+
+        // Middleware to apply to the metrics endpoint (e.g., 'auth:api')
+        'middleware' => [],
+    ],
 ];
