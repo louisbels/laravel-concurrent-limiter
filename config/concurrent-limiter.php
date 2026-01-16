@@ -117,4 +117,19 @@ return [
         'channel' => null,
         'level' => 'warning',
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | On Cache Failure
+    |--------------------------------------------------------------------------
+    |
+    | Behavior when the cache operation fails (e.g., Redis is down).
+    | - 'allow': Let requests through (fail-open, default)
+    | - 'reject': Return 503 error (fail-closed, more secure)
+    |
+    | Use 'reject' for critical endpoints where you'd rather block all
+    | requests than risk exceeding your backend capacity.
+    |
+    */
+    'on_cache_failure' => 'allow',
 ];

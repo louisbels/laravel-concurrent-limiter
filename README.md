@@ -174,6 +174,73 @@ Configure your preferred store in `config/concurrent-limiter.php`:
 'cache_store' => 'redis', // or null to use default
 ```
 
+## Artisan Commands
+
+The package includes two Artisan commands for debugging and maintenance:
+
+### Check Counter Status
+
+```bash
+php artisan concurrent-limiter:status {key}
+```
+
+Shows the current counter value for a given key. The key is typically a SHA1 hash of the user ID or IP address.
+
+```bash
+# Example output
+Key: concurrent-limiter:abc123...
+Current count: 3
+Max parallel: 10
+Status: 3/10 slots in use
+```
+
+### Clear Stuck Counters
+
+```bash
+php artisan concurrent-limiter:clear {key} [--force]
+```
+
+Clears a stuck counter (e.g., if your app crashed before decrementing). Use `--force` to skip confirmation.
+
+```bash
+# With confirmation
+php artisan concurrent-limiter:clear abc123
+
+# Skip confirmation
+php artisan concurrent-limiter:clear abc123 --force
+```
+
+## Cache Failure Handling
+
+By default, if the cache becomes unavailable (e.g., Redis is down), the middleware will let requests through (fail-open). For critical endpoints, you can configure fail-closed behavior:
+
+```php
+// config/concurrent-limiter.php
+'on_cache_failure' => 'reject', // Return 503 if cache is unavailable
+```
+
+| Mode | Behavior | Use Case |
+|------|----------|----------|
+| `allow` (default) | Let requests through | General APIs, non-critical endpoints |
+| `reject` | Return 503 error | Payment processing, rate-sensitive operations |
+
+The `CacheOperationFailed` event is dispatched when cache errors occur, allowing you to monitor these failures:
+
+```php
+use Largerio\LaravelConcurrentLimiter\Events\CacheOperationFailed;
+
+class LogCacheFailure
+{
+    public function handle(CacheOperationFailed $event): void
+    {
+        Log::error('Cache operation failed', [
+            'exception' => $event->exception->getMessage(),
+            'url' => $event->request->fullUrl(),
+        ]);
+    }
+}
+```
+
 ## Troubleshooting
 
 ### Always getting 503 errors

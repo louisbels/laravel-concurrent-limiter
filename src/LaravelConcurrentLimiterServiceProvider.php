@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Largerio\LaravelConcurrentLimiter;
 
+use Largerio\LaravelConcurrentLimiter\Commands\ClearCommand;
+use Largerio\LaravelConcurrentLimiter\Commands\StatusCommand;
 use Largerio\LaravelConcurrentLimiter\Contracts\ConcurrentLimiter;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
@@ -14,7 +16,11 @@ class LaravelConcurrentLimiterServiceProvider extends PackageServiceProvider
     {
         $package
             ->name('laravel-concurrent-limiter')
-            ->hasConfigFile();
+            ->hasConfigFile()
+            ->hasCommands([
+                StatusCommand::class,
+                ClearCommand::class,
+            ]);
     }
 
     public function packageRegistered(): void

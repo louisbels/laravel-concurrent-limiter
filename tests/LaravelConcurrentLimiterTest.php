@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Event;
 use Largerio\LaravelConcurrentLimiter\Contracts\ConcurrentLimiter;
 use Largerio\LaravelConcurrentLimiter\Contracts\KeyResolver;
 use Largerio\LaravelConcurrentLimiter\Contracts\ResponseHandler;
+use Largerio\LaravelConcurrentLimiter\Events\CacheOperationFailed;
 use Largerio\LaravelConcurrentLimiter\Events\ConcurrentLimitExceeded;
 use Largerio\LaravelConcurrentLimiter\Events\ConcurrentLimitReleased;
 use Largerio\LaravelConcurrentLimiter\Events\ConcurrentLimitWaiting;
@@ -340,4 +341,51 @@ it('allows maxWaitTime of zero', function () {
     $response = $middleware->handle($request, fn () => response()->json(['ok' => true]), 5, 0);
 
     expect($response->getStatusCode())->toBe(200);
+});
+
+it('dispatches CacheOperationFailed event when cache fails', function () {
+    Event::fake([CacheOperationFailed::class]);
+
+    $failingCache = Mockery::mock(\Illuminate\Contracts\Cache\Repository::class);
+    $failingCache->shouldReceive('getStore')->andThrow(new RuntimeException('Cache unavailable'));
+
+    $cacheManager = Mockery::mock(\Illuminate\Cache\CacheManager::class);
+    $cacheManager->shouldReceive('store')->andReturn($failingCache);
+
+    $middleware = new LaravelConcurrentLimiter($cacheManager);
+    $request = Request::create('/test', 'GET');
+    $request->setUserResolver(fn () => null);
+    $request->server->set('REMOTE_ADDR', '127.0.0.1');
+
+    config()->set('concurrent-limiter.on_cache_failure', 'reject');
+
+    $response = $middleware->handle($request, fn () => response()->json(['ok' => true]), 5, 10);
+
+    expect($response->getStatusCode())->toBe(Response::HTTP_SERVICE_UNAVAILABLE);
+    Event::assertDispatched(CacheOperationFailed::class);
+});
+
+it('allows request through when cache fails with allow mode', function () {
+    $failingCache = Mockery::mock(\Illuminate\Contracts\Cache\Repository::class);
+    $failingCache->shouldReceive('getStore')->andThrow(new RuntimeException('Cache unavailable'));
+
+    $cacheManager = Mockery::mock(\Illuminate\Cache\CacheManager::class);
+    $cacheManager->shouldReceive('store')->andReturn($failingCache);
+
+    $middleware = new LaravelConcurrentLimiter($cacheManager);
+    $request = Request::create('/test', 'GET');
+    $request->setUserResolver(fn () => null);
+    $request->server->set('REMOTE_ADDR', '127.0.0.1');
+
+    config()->set('concurrent-limiter.on_cache_failure', 'allow');
+
+    expect(fn () => $middleware->handle($request, fn () => response()->json(['ok' => true]), 5, 10))
+        ->toThrow(RuntimeException::class, 'Cache unavailable');
+});
+
+it('has on_cache_failure config option', function () {
+    expect(config('concurrent-limiter.on_cache_failure'))->toBe('allow');
+
+    config()->set('concurrent-limiter.on_cache_failure', 'reject');
+    expect(config('concurrent-limiter.on_cache_failure'))->toBe('reject');
 });

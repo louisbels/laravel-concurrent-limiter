@@ -16,6 +16,7 @@ use InvalidArgumentException;
 use Largerio\LaravelConcurrentLimiter\Contracts\ConcurrentLimiter;
 use Largerio\LaravelConcurrentLimiter\Contracts\KeyResolver;
 use Largerio\LaravelConcurrentLimiter\Contracts\ResponseHandler;
+use Largerio\LaravelConcurrentLimiter\Events\CacheOperationFailed;
 use Largerio\LaravelConcurrentLimiter\Events\ConcurrentLimitExceeded;
 use Largerio\LaravelConcurrentLimiter\Events\ConcurrentLimitReleased;
 use Largerio\LaravelConcurrentLimiter\Events\ConcurrentLimitWaiting;
@@ -23,6 +24,7 @@ use Largerio\LaravelConcurrentLimiter\KeyResolvers\DefaultKeyResolver;
 use Largerio\LaravelConcurrentLimiter\ResponseHandlers\DefaultResponseHandler;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 class LaravelConcurrentLimiter implements ConcurrentLimiter
 {
@@ -86,7 +88,11 @@ class LaravelConcurrentLimiter implements ConcurrentLimiter
         $startTime = microtime(true);
         $hasWaited = false;
 
-        $current = $this->atomicIncrement($key, $ttl);
+        try {
+            $current = $this->atomicIncrement($key, $ttl);
+        } catch (Throwable $e) {
+            return $this->handleCacheFailure($request, $e, $maxWaitTime);
+        }
 
         while ($current > $maxParallel) {
             if (! $hasWaited) {
@@ -97,7 +103,7 @@ class LaravelConcurrentLimiter implements ConcurrentLimiter
             $elapsed = microtime(true) - $startTime;
 
             if ($elapsed >= $maxWaitTime) {
-                $this->atomicDecrement($key);
+                $this->safeDecrement($key);
                 $this->logLimitExceeded($request, $elapsed, $key);
 
                 ConcurrentLimitExceeded::dispatch($request, $elapsed, $maxParallel, $key);
@@ -107,9 +113,13 @@ class LaravelConcurrentLimiter implements ConcurrentLimiter
 
             usleep(100_000);
 
-            /** @var int $cachedValue */
-            $cachedValue = $this->cache->get($key, 0);
-            $current = $cachedValue;
+            try {
+                /** @var int $cachedValue */
+                $cachedValue = $this->cache->get($key, 0);
+                $current = $cachedValue;
+            } catch (Throwable $e) {
+                return $this->handleCacheFailure($request, $e, $maxWaitTime);
+            }
         }
 
         $processingStartTime = microtime(true);
@@ -117,10 +127,33 @@ class LaravelConcurrentLimiter implements ConcurrentLimiter
         try {
             return $next($request);
         } finally {
-            $this->atomicDecrement($key);
+            $this->safeDecrement($key);
             $processingTime = microtime(true) - $processingStartTime;
 
             ConcurrentLimitReleased::dispatch($request, $processingTime, $key);
+        }
+    }
+
+    protected function handleCacheFailure(Request $request, Throwable $exception, int $maxWaitTime): Response
+    {
+        CacheOperationFailed::dispatch($request, $exception);
+
+        /** @var string $onCacheFailure */
+        $onCacheFailure = config('concurrent-limiter.on_cache_failure', 'allow');
+
+        if ($onCacheFailure === 'reject') {
+            return $this->responseHandler->handle($request, 0.0, $maxWaitTime);
+        }
+
+        throw $exception;
+    }
+
+    protected function safeDecrement(string $key): void
+    {
+        try {
+            $this->atomicDecrement($key);
+        } catch (Throwable) {
+            // Silently ignore decrement failures to avoid breaking the response
         }
     }
 
