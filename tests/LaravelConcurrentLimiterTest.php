@@ -3,7 +3,6 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
-use InvalidArgumentException;
 use Largerio\LaravelConcurrentLimiter\Contracts\ConcurrentLimiter;
 use Largerio\LaravelConcurrentLimiter\Contracts\KeyResolver;
 use Largerio\LaravelConcurrentLimiter\Contracts\ResponseHandler;
