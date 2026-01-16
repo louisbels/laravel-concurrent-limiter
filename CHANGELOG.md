@@ -2,29 +2,12 @@
 
 All notable changes to `laravel-concurrent-limiter` will be documented in this file.
 
-## [1.1.1] - 2026-01-16
+## v1.0.0 - 2026-01-16
 
-### Removed
-- Unused `spatie/laravel-ray` dev dependency
+### Initial Release
 
-## [1.1.0] - 2026-01-16
+#### Added
 
-### Added
-- Laravel 12 support
-
-### Changed
-- Minimum PHP version is now 8.3 (dropped PHP 8.2 support)
-- Upgraded to Pest 4
-- Upgraded to larastan 3.x
-- Upgraded phpstan extensions to 2.x
-
-### Removed
-- PHP 8.2 support
-- Laravel 10 support
-
-## [1.0.0] - 2025-01-16
-
-### Added
 - Core middleware for concurrent request limiting per user (or IP)
 - `ConcurrentLimiter` interface for dependency injection
 - `KeyResolver` interface with `DefaultKeyResolver` (user ID or IP-based)
@@ -33,6 +16,53 @@ All notable changes to `laravel-concurrent-limiter` will be documented in this f
   - `ConcurrentLimitWaiting` - dispatched when a request starts waiting
   - `ConcurrentLimitExceeded` - dispatched when timeout is reached
   - `ConcurrentLimitReleased` - dispatched after request completion
+  
+- Atomic cache operations with `LockProvider` support
+- Configurable options: max_parallel, max_wait_time, ttl_buffer, cache_prefix, cache_store, retry_after, key_resolver, response_handler, logging
+- Static helper `LaravelConcurrentLimiter::with()`
+- Middleware alias `concurrent.limit`
+- Support for PHP 8.2, 8.3, 8.4
+- Support for Laravel 10.x and 11.x
+- PHPStan level 9 compliance
+- 33 tests with Pest PHP
+
+## [1.1.1] - 2026-01-16
+
+### Removed
+
+- Unused `spatie/laravel-ray` dev dependency
+
+## [1.1.0] - 2026-01-16
+
+### Added
+
+- Laravel 12 support
+
+### Changed
+
+- Minimum PHP version is now 8.3 (dropped PHP 8.2 support)
+- Upgraded to Pest 4
+- Upgraded to larastan 3.x
+- Upgraded phpstan extensions to 2.x
+
+### Removed
+
+- PHP 8.2 support
+- Laravel 10 support
+
+## [1.0.0] - 2025-01-16
+
+### Added
+
+- Core middleware for concurrent request limiting per user (or IP)
+- `ConcurrentLimiter` interface for dependency injection
+- `KeyResolver` interface with `DefaultKeyResolver` (user ID or IP-based)
+- `ResponseHandler` interface with `DefaultResponseHandler` (503 JSON + Retry-After header)
+- Events for monitoring:
+  - `ConcurrentLimitWaiting` - dispatched when a request starts waiting
+  - `ConcurrentLimitExceeded` - dispatched when timeout is reached
+  - `ConcurrentLimitReleased` - dispatched after request completion
+  
 - Atomic cache operations with `LockProvider` support (fallback for non-locking stores)
 - Configurable options:
   - `max_parallel` - maximum concurrent requests
@@ -44,6 +74,7 @@ All notable changes to `laravel-concurrent-limiter` will be documented in this f
   - `key_resolver` - custom key resolver class
   - `response_handler` - custom response handler class
   - `logging` - automatic logging when limits exceeded
+  
 - Static helper `LaravelConcurrentLimiter::with(maxParallel, maxWaitTime, prefix)`
 - Middleware alias `concurrent.limit`
 - Support for PHP 8.2, 8.3, 8.4
@@ -53,5 +84,6 @@ All notable changes to `laravel-concurrent-limiter` will be documented in this f
 - CI/CD with GitHub Actions (tests, PHPStan, Laravel Pint)
 
 ### Changed
+
 - Namespace from `Patrocle` to `Largerio`
 - Package name from `patrocle/laravel-concurrent-limiter` to `largerio/laravel-concurrent-limiter`
