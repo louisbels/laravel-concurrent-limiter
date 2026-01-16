@@ -11,7 +11,7 @@ This document provides guidance for AI assistants working with the Laravel Concu
 - **Repository**: `https://github.com/largerio/laravel-concurrent-limiter`
 - **License**: MIT
 - **PHP Support**: 8.2, 8.3, 8.4
-- **Laravel Support**: 10.x, 11.x
+- **Laravel Support**: 11.x, 12.x
 
 ## Repository Structure
 
@@ -148,7 +148,7 @@ All workflows trigger on `push` AND `pull_request`:
 
 | Workflow | Description |
 |----------|-------------|
-| `run-tests.yml` | PHP 8.2/8.3/8.4 × Laravel 10/11 × Ubuntu/Windows |
+| `run-tests.yml` | PHP 8.2/8.3/8.4 × Laravel 11/12 × Ubuntu/Windows |
 | `phpstan.yml` | Static analysis level 9 |
 | `fix-php-code-style-issues.yml` | Auto-fix and commit style issues |
 
