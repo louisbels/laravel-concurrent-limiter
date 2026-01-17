@@ -11,6 +11,7 @@ A Laravel middleware package that limits the number of **concurrent** requests p
 
 - **HTTP Middleware** - Limit concurrent requests per user/IP with automatic queuing
 - **Job Middleware** - Limit concurrent queue job execution to protect external APIs
+- **Adaptive Limiting** - Auto-adjust limits based on latency using AIMD algorithm
 - **Prometheus Metrics** - Built-in `/metrics` endpoint for monitoring
 - **Fail-safe** - Configurable behavior when cache is unavailable
 - **Events** - Full request lifecycle tracking (wait, acquire, release, exceed)
@@ -29,6 +30,7 @@ A Laravel middleware package that limits the number of **concurrent** requests p
 - [HTTP Middleware](#http-middleware)
 - [Job Middleware](#job-middleware)
 - [Configuration](#configuration)
+- [Adaptive Limiting](#adaptive-limiting)
 - [Events](#events)
 - [Custom Key Resolver](#custom-key-resolver)
 - [Custom Response Handler](#custom-response-handler)
@@ -157,6 +159,127 @@ class ProcessPayment implements ShouldQueue
 | `metrics.enabled` | false | Enable Prometheus metrics endpoint |
 | `metrics.route` | '/concurrent-limiter/metrics' | Metrics endpoint path |
 | `metrics.middleware` | [] | Middleware for metrics endpoint |
+| `adaptive.enabled` | false | Enable adaptive concurrency limiting |
+| `adaptive.algorithm` | 'vegas' | Algorithm: 'vegas' or 'gradient2' |
+| `adaptive.min_limit` | 1 | Minimum concurrency limit |
+| `adaptive.max_limit` | 100 | Maximum concurrency limit |
+| `adaptive.ewma_alpha` | 0.3 | EWMA smoothing factor (Vegas) |
+| `adaptive.sample_window` | 60 | Metrics TTL in seconds |
+| `adaptive.min_rtt_reset_samples` | 1000 | Reset minRTT after N samples (Vegas) |
+| `adaptive.rtt_tolerance` | 2.0 | Acceptable latency multiplier (Gradient2) |
+
+## Adaptive Limiting
+
+Automatically adjust `maxParallel` based on observed response latency using algorithms inspired by Netflix's concurrency-limits library.
+
+### Available Algorithms
+
+**Vegas (default)** - Based on TCP Vegas congestion control:
+- Tracks minimum RTT (best-case latency) as baseline
+- Compares current latency to baseline to detect queueing
+- Uses dynamic alpha/beta thresholds based on current limit
+- Best for: Server-side protection, proactive congestion detection
+
+**Gradient2** - Based on EWMA divergence:
+- Tracks short-term and long-term EWMA
+- Detects latency trends by comparing the two averages
+- Configurable tolerance for latency increase
+- Best for: Detecting gradual degradation, noisy environments
+
+### Enable Adaptive Limiting
+
+```php
+// config/concurrent-limiter.php
+'adaptive' => [
+    'enabled' => true,
+    'algorithm' => 'vegas',         // 'vegas' or 'gradient2'
+    'min_limit' => 1,               // Never go below this
+    'max_limit' => 100,             // Never exceed this
+    'ewma_alpha' => 0.3,            // EWMA smoothing (Vegas)
+    'sample_window' => 60,          // Metrics TTL in seconds
+    'min_rtt_reset_samples' => 1000, // Reset minRTT after N samples (Vegas)
+    'rtt_tolerance' => 2.0,         // Acceptable latency multiplier (Gradient2)
+],
+```
+
+### How Adaptive Interacts with maxParallel
+
+When adaptive limiting is enabled, the `maxParallel` parameter from your route acts as a **hard cap**:
+
+```php
+// Route configuration
+Route::middleware('concurrent.limit:10,30,api')->group(...);
+//                              ↑
+//                              maxParallel = 10 (hard cap)
+
+// Adaptive can only REDUCE the limit, never exceed maxParallel
+// Effective limit = min(maxParallel, adaptiveLimit)
+```
+
+| Scenario | maxParallel | Adaptive calculates | Effective limit |
+|----------|-------------|---------------------|-----------------|
+| Good latency | 10 | 15 | **10** (capped) |
+| High latency | 10 | 3 | **3** (reduced) |
+| No metrics yet | 10 | 10 | **10** (initial) |
+
+This ensures that adaptive limiting is a **safety optimization** - it can reduce load when latency degrades, but never allows more concurrent requests than you explicitly configured.
+
+### Vegas Algorithm Details
+
+**Formula:**
+```
+gradient = minRTT / avgRTT
+queueUse = limit × (1 - gradient)
+
+alpha = max(1, 10% of limit)
+beta = max(2, 20% of limit)
+
+if queueUse < alpha → limit++     (room to grow)
+if queueUse > beta → limit--      (too much queueing)
+else → stable                     (sweet spot)
+```
+
+**Example:** With limit=10, minRTT=100ms, avgRTT=100ms:
+- gradient = 1.0, queueUse = 0
+- 0 < alpha (1) → increase to 11
+
+### Gradient2 Algorithm Details
+
+**Formula:**
+```
+gradient = longEWMA / shortEWMA
+
+if gradient >= 1.02 → limit++     (clearly improving, with 2% hysteresis)
+if gradient < 1/tolerance → limit-- (degrading beyond tolerance)
+else → stable                     (within tolerance)
+```
+
+**Example:** With tolerance=2.0, shortEWMA=200ms, longEWMA=100ms:
+- gradient = 0.5, threshold = 0.5
+- 0.5 >= 0.5 → stable (just within tolerance)
+
+### Use Cases
+
+- **Auto-scaling protection**: Automatically reduce concurrency when backend is overloaded
+- **Variable workloads**: Handle traffic spikes without manual tuning
+- **Proactive detection**: Vegas detects congestion before timeouts occur
+
+### Monitoring
+
+Access metrics programmatically:
+
+```php
+use Largerio\LaravelConcurrentLimiter\Contracts\AdaptiveResolver;
+
+$resolver = app(AdaptiveResolver::class);
+$metrics = $resolver->getMetrics('concurrent-limiter:api:user123');
+
+// Vegas metrics:
+// ['avg_latency_ms' => 245.5, 'min_latency_ms' => 100.0, 'current_limit' => 12, ...]
+
+// Gradient2 metrics:
+// ['short_ewma_ms' => 200.0, 'long_ewma_ms' => 150.0, 'current_limit' => 12, ...]
+```
 
 ## Events
 
@@ -167,7 +290,7 @@ The middleware dispatches events for monitoring and logging:
 | `ConcurrentLimitWaitStarted` | Request starts waiting for a slot | `$request`, `$currentCount`, `$maxParallel`, `$key` |
 | `ConcurrentLimitAcquired` | Request acquires a slot | `$request`, `$waitedSeconds`, `$key` |
 | `ConcurrentLimitExceeded` | Timeout reached, returning 503 | `$request`, `$waitedSeconds`, `$maxParallel`, `$key` |
-| `ConcurrentLimitReleased` | Request completed | `$request`, `$processingTime`, `$key` |
+| `ConcurrentLimitReleased` | Request completed | `$request`, `$totalTime`, `$key` |
 | `CacheOperationFailed` | Cache operation fails | `$request` (nullable), `$exception` |
 
 Example listener:

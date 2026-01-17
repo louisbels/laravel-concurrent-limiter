@@ -151,4 +151,52 @@ return [
         // Middleware to apply to the metrics endpoint (e.g., 'auth:api')
         'middleware' => [],
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Adaptive Limiting
+    |--------------------------------------------------------------------------
+    |
+    | Automatically adjust max_parallel based on observed latency using
+    | algorithms inspired by Netflix's concurrency-limits library.
+    |
+    | Available algorithms:
+    | - 'vegas': Based on TCP Vegas, uses minRTT/avgRTT ratio to detect queueing
+    | - 'gradient2': Tracks divergence between short-term and long-term EWMA
+    |
+    | @see https://github.com/Netflix/concurrency-limits
+    |
+    */
+    'adaptive' => [
+        // Enable adaptive concurrency limiting
+        'enabled' => false,
+
+        // Algorithm: 'vegas' (default) or 'gradient2'
+        // Vegas: Compares current latency to best-case latency (minRTT)
+        // Gradient2: Tracks short-term vs long-term EWMA divergence
+        'algorithm' => 'vegas',
+
+        // Minimum concurrency limit (prevents starvation)
+        'min_limit' => 1,
+
+        // Maximum concurrency limit (prevents runaway growth)
+        'max_limit' => 100,
+
+        // EWMA alpha for latency smoothing (Vegas only, 0.0-1.0)
+        // Higher values = more responsive to recent measurements
+        // Lower values = smoother, less reactive to spikes
+        'ewma_alpha' => 0.3,
+
+        // Time window in seconds for metrics storage
+        // Metrics older than this will expire and reset
+        'sample_window' => 60,
+
+        // Reset minRTT after N samples (Vegas only)
+        // Prevents minRTT from getting stuck at an obsolete value
+        'min_rtt_reset_samples' => 1000,
+
+        // RTT tolerance multiplier (Gradient2 only, >= 1.0)
+        // 2.0 = accept up to 2x latency increase before reducing limit
+        'rtt_tolerance' => 2.0,
+    ],
 ];

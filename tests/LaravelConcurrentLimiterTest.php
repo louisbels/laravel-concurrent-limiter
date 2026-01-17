@@ -232,7 +232,7 @@ it('dispatches ConcurrentLimitReleased event after request completes', function 
     $middleware->handle($request, fn () => response()->json(['ok' => true]), 5, 10);
 
     Event::assertDispatched(ConcurrentLimitReleased::class, function ($event) {
-        return $event->processingTime >= 0;
+        return $event->totalTime >= 0;
     });
 });
 
@@ -389,3 +389,24 @@ it('has on_cache_failure config option', function () {
     config()->set('concurrent-limiter.on_cache_failure', 'reject');
     expect(config('concurrent-limiter.on_cache_failure'))->toBe('reject');
 });
+
+it('supports deprecated processingTime property via magic method', function () {
+    $request = Request::create('/test', 'GET');
+    $event = new ConcurrentLimitReleased($request, 1.5, 'test-key');
+
+    // BC property should work via __get
+    expect($event->processingTime)->toBe(1.5);
+
+    // __isset should return true for processingTime
+    expect(isset($event->processingTime))->toBeTrue();
+
+    // Primary property should work
+    expect($event->totalTime)->toBe(1.5);
+});
+
+it('throws exception for unknown property on ConcurrentLimitReleased', function () {
+    $request = Request::create('/test', 'GET');
+    $event = new ConcurrentLimitReleased($request, 1.5, 'test-key');
+
+    $event->unknownProperty;
+})->throws(InvalidArgumentException::class, 'Property unknownProperty does not exist');

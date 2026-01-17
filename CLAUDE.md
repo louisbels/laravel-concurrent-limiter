@@ -22,7 +22,15 @@ This document provides guidance for AI assistants working with the Laravel Concu
 │   │   └── StatusCommand.php            # Check counter status
 │   ├── Concerns/
 │   │   └── HasAtomicCacheOperations.php # Shared cache operations trait
+│   ├── Adaptive/
+│   │   ├── Algorithms/
+│   │   │   ├── Gradient2Limit.php       # Gradient2 algorithm (EWMA divergence)
+│   │   │   ├── LimitAlgorithm.php       # Algorithm interface
+│   │   │   └── VegasLimit.php           # Vegas algorithm (TCP-inspired)
+│   │   ├── AdaptiveLimitResolver.php    # Main adaptive resolver
+│   │   └── AdaptiveMetricsCollector.php # Event-driven metrics collection
 │   ├── Contracts/
+│   │   ├── AdaptiveResolver.php         # Adaptive limiting interface
 │   │   ├── ConcurrentLimiter.php        # HTTP middleware interface
 │   │   ├── JobLimiter.php               # Job middleware interface
 │   │   ├── KeyResolver.php              # Key resolution interface
@@ -46,12 +54,15 @@ This document provides guidance for AI assistants working with the Laravel Concu
 │   ├── LaravelConcurrentLimiter.php     # HTTP middleware
 │   └── LaravelConcurrentLimiterServiceProvider.php
 ├── tests/
+│   ├── AdaptiveLimitingTest.php         # Adaptive integration tests (23 tests)
 │   ├── ArchTest.php                     # Architecture tests (11 tests)
 │   ├── CommandsTest.php                 # CLI command tests (7 tests)
+│   ├── Gradient2LimitTest.php           # Gradient2 algorithm tests (15 tests)
 │   ├── JobConcurrentLimiterTest.php     # Job middleware tests (8 tests)
-│   ├── LaravelConcurrentLimiterTest.php # HTTP middleware tests (26 tests)
+│   ├── LaravelConcurrentLimiterTest.php # HTTP middleware tests (28 tests)
 │   ├── MetricsTest.php                  # Metrics tests (8 tests)
 │   ├── ServiceProviderTest.php          # Service provider tests (5 tests)
+│   ├── VegasLimitTest.php               # Vegas algorithm tests (13 tests)
 │   ├── TestCase.php                     # Base test case
 │   └── Pest.php                         # Pest configuration
 ├── config/
@@ -68,7 +79,7 @@ This document provides guidance for AI assistants working with the Laravel Concu
 ## Development Commands
 
 ```bash
-composer test           # Run tests (65+ tests)
+composer test           # Run tests (118 tests)
 composer test-coverage  # Run tests with coverage
 composer analyse        # PHPStan level 9 (strict mode)
 composer format         # Laravel Pint code styling
@@ -112,7 +123,7 @@ The middleware dispatches five events:
 | `ConcurrentLimitWaitStarted` | Request starts waiting | `$request`, `$currentCount`, `$maxParallel`, `$key` |
 | `ConcurrentLimitAcquired` | Request acquires slot | `$request`, `$waitedSeconds`, `$key` |
 | `ConcurrentLimitExceeded` | Timeout reached | `$request`, `$waitedSeconds`, `$maxParallel`, `$key` |
-| `ConcurrentLimitReleased` | Request completed | `$request`, `$processingTime`, `$key` |
+| `ConcurrentLimitReleased` | Request completed | `$request`, `$totalTime`, `$key` |
 | `CacheOperationFailed` | Cache operation fails | `$request` (nullable), `$exception` |
 
 ### Extensibility
@@ -149,6 +160,72 @@ Custom response handling:
 | `logging.enabled` | false | Log when limits exceeded |
 | `logging.channel` | null | Log channel |
 | `logging.level` | warning | Log level |
+
+## Adaptive Limiting (v4.0+)
+
+Automatically adjust `maxParallel` based on observed response latency.
+
+### Algorithms
+
+| Algorithm | Description | Best For |
+|-----------|-------------|----------|
+| **Vegas** (default) | TCP Vegas-inspired, tracks minRTT/avgRTT ratio | Server-side protection, proactive congestion detection |
+| **Gradient2** | EWMA divergence, compares short/long term averages | Detecting gradual degradation, noisy environments |
+
+### Vegas Algorithm
+
+```
+gradient = minRTT / avgRTT
+queueUse = limit × (1 - gradient)
+
+alpha = max(1, 10% of limit)
+beta = max(2, 20% of limit)
+
+if queueUse < alpha → limit++     (room to grow)
+if queueUse > beta → limit--      (too much queueing)
+else → stable                     (sweet spot)
+```
+
+### Gradient2 Algorithm
+
+```
+gradient = longEWMA / shortEWMA
+
+if gradient >= 1.02 → limit++     (clearly improving, with 2% hysteresis)
+if gradient < 1/tolerance → limit-- (degrading beyond tolerance)
+else → stable                     (within tolerance)
+```
+
+### Adaptive Config Options
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `adaptive.enabled` | false | Enable adaptive limiting |
+| `adaptive.algorithm` | 'vegas' | Algorithm: 'vegas' or 'gradient2' |
+| `adaptive.min_limit` | 1 | Minimum concurrency limit |
+| `adaptive.max_limit` | 100 | Maximum concurrency limit |
+| `adaptive.ewma_alpha` | 0.3 | EWMA smoothing factor (Vegas) |
+| `adaptive.sample_window` | 60 | Metrics TTL in seconds |
+| `adaptive.min_rtt_reset_samples` | 1000 | Reset minRTT after N samples (Vegas) |
+| `adaptive.rtt_tolerance` | 2.0 | Acceptable latency multiplier (Gradient2) |
+
+### Key Classes
+
+- `AdaptiveLimitResolver` - Main resolver, delegates to configured algorithm
+- `AdaptiveMetricsCollector` - Event subscriber, records latency from `ConcurrentLimitReleased`
+- `VegasLimit` - Vegas algorithm implementation
+- `Gradient2Limit` - Gradient2 algorithm implementation
+- `LimitAlgorithm` - Interface for pluggable algorithms
+
+### maxParallel as Hard Cap
+
+When adaptive is enabled, the route's `maxParallel` acts as a hard cap:
+
+```php
+// concurrent.limit:10 → maxParallel = 10
+// Effective limit = min(maxParallel, adaptiveLimit)
+// Adaptive can reduce to min_limit, but never exceed maxParallel
+```
 
 ## Code Standards
 

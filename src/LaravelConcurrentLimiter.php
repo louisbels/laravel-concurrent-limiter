@@ -10,7 +10,9 @@ use Illuminate\Http\Request;
 use Illuminate\Log\LogManager;
 use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
+use Largerio\LaravelConcurrentLimiter\Adaptive\AdaptiveLimitResolver;
 use Largerio\LaravelConcurrentLimiter\Concerns\HasAtomicCacheOperations;
+use Largerio\LaravelConcurrentLimiter\Contracts\AdaptiveResolver;
 use Largerio\LaravelConcurrentLimiter\Contracts\ConcurrentLimiter;
 use Largerio\LaravelConcurrentLimiter\Contracts\KeyResolver;
 use Largerio\LaravelConcurrentLimiter\Contracts\ResponseHandler;
@@ -35,16 +37,20 @@ class LaravelConcurrentLimiter implements ConcurrentLimiter
 
     protected ResponseHandler $responseHandler;
 
+    protected AdaptiveResolver $adaptiveResolver;
+
     public function __construct(
         ?CacheManager $cacheManager = null,
         ?KeyResolver $keyResolver = null,
-        ?ResponseHandler $responseHandler = null
+        ?ResponseHandler $responseHandler = null,
+        ?AdaptiveResolver $adaptiveResolver = null
     ) {
         $this->cacheManager = $cacheManager ?? app('cache');
         $this->initializeCache($this->cacheManager);
 
         $this->keyResolver = $keyResolver ?? $this->resolveKeyResolver();
         $this->responseHandler = $responseHandler ?? $this->resolveResponseHandler();
+        $this->adaptiveResolver = $adaptiveResolver ?? new AdaptiveLimitResolver;
     }
 
     public function handle(
@@ -78,6 +84,11 @@ class LaravelConcurrentLimiter implements ConcurrentLimiter
         $cachePrefix = $configCachePrefix;
 
         $key = $cachePrefix.$prefix.$this->keyResolver->resolve($request);
+
+        // Apply adaptive limiting if enabled
+        // Adaptive can only reduce the limit, never exceed maxParallel
+        $adaptiveLimit = $this->adaptiveResolver->resolve($key, $maxParallel);
+        $maxParallel = min($maxParallel, $adaptiveLimit);
         $startTime = microtime(true);
         $hasWaited = false;
 
@@ -118,15 +129,15 @@ class LaravelConcurrentLimiter implements ConcurrentLimiter
         $waitedSeconds = microtime(true) - $startTime;
         ConcurrentLimitAcquired::dispatch($request, $waitedSeconds, $key);
 
-        $processingStartTime = microtime(true);
-
         try {
             return $next($request);
         } finally {
             $this->safeDecrement($key);
-            $processingTime = microtime(true) - $processingStartTime;
 
-            ConcurrentLimitReleased::dispatch($request, $processingTime, $key);
+            // Total time = wait time + processing time (for adaptive limiting RTT)
+            $totalTime = microtime(true) - $startTime;
+
+            ConcurrentLimitReleased::dispatch($request, $totalTime, $key);
         }
     }
 

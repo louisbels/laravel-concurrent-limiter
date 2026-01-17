@@ -6,8 +6,11 @@ namespace Largerio\LaravelConcurrentLimiter;
 
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
+use Largerio\LaravelConcurrentLimiter\Adaptive\AdaptiveLimitResolver;
+use Largerio\LaravelConcurrentLimiter\Adaptive\AdaptiveMetricsCollector;
 use Largerio\LaravelConcurrentLimiter\Commands\ClearCommand;
 use Largerio\LaravelConcurrentLimiter\Commands\StatusCommand;
+use Largerio\LaravelConcurrentLimiter\Contracts\AdaptiveResolver;
 use Largerio\LaravelConcurrentLimiter\Contracts\ConcurrentLimiter;
 use Largerio\LaravelConcurrentLimiter\Contracts\JobLimiter;
 use Largerio\LaravelConcurrentLimiter\Contracts\MetricsCollector;
@@ -40,6 +43,9 @@ class LaravelConcurrentLimiterServiceProvider extends PackageServiceProvider
 
         $this->app->singleton(MetricsCollector::class, PrometheusMetricsCollector::class);
         $this->app->singleton(PrometheusMetricsCollector::class);
+
+        $this->app->singleton(AdaptiveResolver::class, AdaptiveLimitResolver::class);
+        $this->app->singleton(AdaptiveLimitResolver::class);
     }
 
     public function packageBooted(): void
@@ -49,6 +55,7 @@ class LaravelConcurrentLimiterServiceProvider extends PackageServiceProvider
         $router->aliasMiddleware('concurrent.limit', LaravelConcurrentLimiter::class);
 
         $this->registerMetrics();
+        $this->registerAdaptiveLimiting();
     }
 
     protected function registerMetrics(): void
@@ -73,5 +80,18 @@ class LaravelConcurrentLimiterServiceProvider extends PackageServiceProvider
                 ->middleware($metricsConfig['middleware'])
                 ->name('concurrent-limiter.metrics');
         }
+    }
+
+    protected function registerAdaptiveLimiting(): void
+    {
+        /** @var bool $enabled */
+        $enabled = config('concurrent-limiter.adaptive.enabled', false);
+
+        if (! $enabled) {
+            return;
+        }
+
+        // Register adaptive metrics collector
+        Event::subscribe(AdaptiveMetricsCollector::class);
     }
 }
